@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile information and progress",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["client", "admin"] },
+        "progress": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "courseId": { "type": "string" },
+              "completed": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["uid", "email", "displayName", "role"]
+    },
+    "Config": {
+      "title": "Configuration",
+      "description": "App configuration settings",
+      "type": "object",
+      "properties": {
+        "sections": { "type": "array" }
+      }
+    },
+    "Application": {
+      "title": "Course Application",
+      "description": "Information from prospective students",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "contactNumber": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "course": { "type": "string" },
+        "mode": { "type": "string", "enum": ["online", "in-person", "hybrid"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "course", "mode"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile collection"
+    },
+    "/config/{configId}": {
+      "schema": "Config",
+      "description": "App configuration settings"
+    },
+    "/applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Collection of student applications"
+    }
+  }
+}

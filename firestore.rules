@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, email format)
+    //   - displayName: string (required)
+    //   - role: string (required, enum: ['client', 'admin'])
+    //   - progress: array (optional)
+    //
+    // Collection: config
+    // Document ID: {configId}
+    // Fields:
+    //   - sections: array (required)
+    //
+    // Collection: applications
+    // Document ID: {applicationId}
+    // Fields:
+    //   - name: string (required)
+    //   - age: number (optional)
+    //   - contactNumber: string (optional)
+    //   - email: string (required, email format)
+    //   - course: string (required)
+    //   - mode: string (required, enum: ['online', 'in-person', 'hybrid'])
+    //   - createdAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "shazaincheemaac30@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role']) &&
+        data.uid is string &&
+        data.email is string && isValidEmail(data.email) &&
+        data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+        data.role in ['client', 'admin'];
+    }
+
+    function isValidApplication(data) {
+      return data.keys().hasAll(['name', 'email', 'course', 'mode', 'createdAt']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+        data.email is string && isValidEmail(data.email) &&
+        data.course is string &&
+        data.mode in ['online', 'in-person', 'hybrid'] &&
+        data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+        (isOwner(userId) && request.resource.data.role == 'client' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+        (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /config/{configId} {
+      allow read: if true; // Publicly readable for landing page
+      allow write: if isAdmin();
+    }
+
+    match /applications/{applicationId} {
+      allow read: if isAdmin();
+      allow create: if isValidApplication(request.resource.data);
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
