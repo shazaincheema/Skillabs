@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  error: string | null;
   signIn: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -20,6 +21,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Test connection as required by guidelines
@@ -90,23 +92,27 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async () => {
     const provider = new GoogleAuthProvider();
+    setError(null);
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Error signing in:", error);
+    } catch (err: any) {
+      console.error("Error signing in:", err);
+      setError(err.message || "An unknown error occurred during sign in.");
     }
   };
 
   const logout = async () => {
     try {
+      setError(null);
       await signOut(auth);
-    } catch (error) {
-      console.error("Error signing out:", error);
+    } catch (err: any) {
+      console.error("Error signing out:", err);
+      setError(err.message || "An unknown error occurred during logout.");
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, error, signIn, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -33,7 +33,7 @@ import { isSuperAdmin } from './constants';
 
 // Auth Guard Component
 const AuthGuard = ({ children, role }: { children: React.ReactNode, role?: 'client' | 'admin' }) => {
-  const { user, profile, loading, signIn } = useAuth();
+  const { user, profile, loading, error, signIn } = useAuth();
 
   if (loading) {
     return (
@@ -49,6 +49,15 @@ const AuthGuard = ({ children, role }: { children: React.ReactNode, role?: 'clie
         <Logo size={80} className="mb-8" />
         <h1 className="text-3xl font-display font-bold text-primary mb-4">Welcome to Skillabs Portal</h1>
         <p className="text-primary/60 mb-8 max-w-md">Please sign in with your Google account to access your dashboard and courses.</p>
+        
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl max-w-md text-sm">
+            <p className="font-bold mb-1">Sign-in Error:</p>
+            <p>{error}</p>
+            <p className="mt-2 text-xs opacity-70">Tip: Ensure popups are allowed and this domain is authorized in Firebase.</p>
+          </div>
+        )}
+
         <button
           onClick={signIn}
           className="px-8 py-4 bg-primary text-white font-bold rounded-2xl hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center gap-3"
