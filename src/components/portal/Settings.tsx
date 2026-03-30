@@ -101,23 +101,6 @@ export default function Settings() {
 
       setMessage({ type: 'success', text: `Admin access granted to ${newAdminEmail}` });
       setNewAdminEmail('');
-
-      // Update backend for email notifications
-      // We'll fetch all admins to update the list
-      const allAdminsQuery = query(collection(db, 'users'), where('role', '==', 'admin'));
-      const allAdminsSnap = await getDocs(allAdminsQuery);
-      const preAdminsSnap = await getDocs(collection(db, 'pre_authorized_admins'));
-      
-      const adminEmailsList = [
-        ...allAdminsSnap.docs.map(d => d.data().email),
-        ...preAdminsSnap.docs.map(d => d.data().email)
-      ];
-
-      await fetch('/api/update-admin-emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: adminEmailsList })
-      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'users');
       setMessage({ type: 'error', text: 'Failed to add admin. Please try again.' });
@@ -144,22 +127,6 @@ export default function Settings() {
       }
       
       setMessage({ type: 'success', text: `Admin access removed for ${adminEmail}` });
-
-      // Update backend for email notifications
-      const allAdminsQuery = query(collection(db, 'users'), where('role', '==', 'admin'));
-      const allAdminsSnap = await getDocs(allAdminsQuery);
-      const preAdminsSnap = await getDocs(collection(db, 'pre_authorized_admins'));
-      
-      const adminEmailsList = [
-        ...allAdminsSnap.docs.map(d => d.data().email),
-        ...preAdminsSnap.docs.map(d => d.data().email)
-      ];
-
-      await fetch('/api/update-admin-emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: adminEmailsList })
-      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${adminId}`);
       setMessage({ type: 'error', text: 'Failed to remove admin access.' });
