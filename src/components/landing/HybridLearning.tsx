@@ -1,7 +1,17 @@
 import { motion } from 'motion/react';
 import { Globe, MapPin, CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export default function HybridLearning({ content }: { content?: any }) {
+export default function HybridLearning({ content, isEditing, onUpdate }: { content?: any, isEditing?: boolean, onUpdate?: (data: any) => void }) {
+  const title = content?.title || "The Best of Both Worlds: Hybrid Learning";
+  const description = content?.description || "At Skillabs, we believe learning should fit your lifestyle. Our unique hybrid model combines the convenience of online sessions with the impact of in-person workshops.";
+
+  const handleBlur = (field: string, value: string) => {
+    if (onUpdate) {
+      onUpdate({ ...content, [field]: value });
+    }
+  };
+
   return (
     <section id="hybrid" className="py-32 px-6 overflow-hidden">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center gap-20">
@@ -15,13 +25,27 @@ export default function HybridLearning({ content }: { content?: any }) {
             <Globe size={16} className="text-accent" />
             <span>Flexibility First</span>
           </div>
-          <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-8 leading-tight">
-            The Best of Both Worlds: <br />
-            <span className="text-accent">Hybrid Learning</span>
+          <h2 
+            className={cn(
+              "text-4xl md:text-5xl font-display font-bold text-white mb-8 leading-tight outline-none",
+              isEditing && "focus:ring-2 focus:ring-accent rounded-lg"
+            )}
+            contentEditable={isEditing}
+            onBlur={(e) => handleBlur('title', e.currentTarget.textContent || '')}
+            suppressContentEditableWarning
+          >
+            {title}
           </h2>
-          <p className="text-lg text-white/60 mb-10 leading-relaxed">
-            At Skillabs, we believe learning should fit your lifestyle. Our unique hybrid model
-            combines the convenience of online sessions with the impact of in-person workshops.
+          <p 
+            className={cn(
+              "text-lg text-white/60 mb-10 leading-relaxed outline-none",
+              isEditing && "focus:ring-2 focus:ring-accent rounded-lg"
+            )}
+            contentEditable={isEditing}
+            onBlur={(e) => handleBlur('description', e.currentTarget.textContent || '')}
+            suppressContentEditableWarning
+          >
+            {description}
           </p>
 
           <div className="space-y-6">

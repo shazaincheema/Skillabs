@@ -10,29 +10,29 @@ import Navbar from '../layout/Navbar';
 import Footer from '../layout/Footer';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { handleFirestoreError, OperationType } from '../../lib/firebase-utils';
 
 export default function LandingPage() {
   const [sections, setSections] = useState<any[]>([]);
+  const [siteConfig, setSiteConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const docRef = doc(db, 'config', 'landing-page');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setSections(docSnap.data().sections);
-        }
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, 'config/landing-page');
-      } finally {
-        setLoading(false);
+    const unsubscribe = onSnapshot(doc(db, 'config', 'landing-page'), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setSections(data.sections || []);
+        setSiteConfig(data.site || null);
       }
-    };
-    fetchConfig();
+      setLoading(false);
+    }, (error) => {
+      console.error('Landing Page Load Error:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   if (loading) {
@@ -45,19 +45,20 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-primary">
-      <Navbar />
+      <Navbar logoText={siteConfig?.logoText} />
       <main>
         {sections.length > 0 ? (
           sections.map((section) => {
             switch (section.type) {
               case 'hero': return <Hero key={section.id} content={section.content} />;
-              case 'stats': return <Stats key={section.id} />;
+              case 'stats': return <Stats key={section.id} content={section.content} />;
               case 'courses': return <Courses key={section.id} content={section.content} />;
               case 'hybrid': return <HybridLearning key={section.id} content={section.content} />;
               case 'why': return <WhySkillabs key={section.id} content={section.content} />;
               case 'how': return <HowItWorks key={section.id} content={section.content} />;
-              case 'apply': return <ApplicationForm key={section.id} />;
+              case 'apply': return <ApplicationForm key={section.id} content={section.content} />;
               case 'cta': return <CTA key={section.id} content={section.content} />;
+              case 'footer': return <Footer key={section.id} content={section.content} />;
               default: return null;
             }
           })
@@ -71,10 +72,10 @@ export default function LandingPage() {
             <HowItWorks />
             <ApplicationForm />
             <CTA />
+            <Footer />
           </>
         )}
       </main>
-      <Footer />
     </div>
   );
 }

@@ -39,14 +39,22 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
+          const existingProfile = docSnap.data() as UserProfile;
+          // Ensure master admin always has admin role
+          if (user.email === 'shazaincheemaac30@gmail.com' && existingProfile.role !== 'admin') {
+            const updatedProfile = { ...existingProfile, role: 'admin' as const };
+            await setDoc(docRef, updatedProfile);
+            setProfile(updatedProfile);
+          } else {
+            setProfile(existingProfile);
+          }
         } else {
           // Create default profile
           const newProfile: UserProfile = {
             uid: user.uid,
             email: user.email || '',
             displayName: user.displayName || 'User',
-            role: 'client', // Default role
+            role: user.email === 'shazaincheemaac30@gmail.com' ? 'admin' : 'client',
             progress: []
           };
           await setDoc(docRef, newProfile);

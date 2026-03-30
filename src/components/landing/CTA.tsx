@@ -1,9 +1,19 @@
 import { motion } from 'motion/react';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Logo from '../ui/Logo';
+import { cn } from '@/lib/utils';
 
-export default function CTA({ content }: { content?: any }) {
+export default function CTA({ content, isEditing, onUpdate }: { content?: any, isEditing?: boolean, onUpdate?: (data: any) => void }) {
+  const title = content?.title || "Unlock Your Potential with Skillabs.";
+  const subtitle = content?.subtitle || "Join our community of lifelong learners and master the skills that matter. Expert-led sessions, hybrid learning, and personalized growth.";
+
+  const handleBlur = (field: string, value: string) => {
+    if (onUpdate) {
+      onUpdate({ ...content, [field]: value });
+    }
+  };
+
   return (
     <section className="py-32 px-6 bg-primary overflow-hidden relative">
       {/* Decorative Elements */}
@@ -24,10 +34,15 @@ export default function CTA({ content }: { content?: any }) {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-4xl md:text-6xl font-display font-bold text-white mb-8 leading-tight"
+          className={cn(
+            "text-4xl md:text-6xl font-display font-bold text-white mb-8 leading-tight outline-none",
+            isEditing && "focus:ring-2 focus:ring-accent rounded-lg px-2"
+          )}
+          contentEditable={isEditing}
+          onBlur={(e) => handleBlur('title', e.currentTarget.textContent || '')}
+          suppressContentEditableWarning
         >
-          Unlock Your Potential <br />
-          <span className="text-accent">with Skillabs.</span>
+          {title}
         </motion.h2>
 
         <motion.p
@@ -35,10 +50,15 @@ export default function CTA({ content }: { content?: any }) {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.1 }}
-          className="text-lg text-white/60 mb-12 max-w-2xl mx-auto"
+          className={cn(
+            "text-lg text-white/60 mb-12 max-w-2xl mx-auto outline-none",
+            isEditing && "focus:ring-2 focus:ring-accent rounded-lg px-2"
+          )}
+          contentEditable={isEditing}
+          onBlur={(e) => handleBlur('subtitle', e.currentTarget.textContent || '')}
+          suppressContentEditableWarning
         >
-          Join our community of lifelong learners and master the skills that matter.
-          Expert-led sessions, hybrid learning, and personalized growth.
+          {subtitle}
         </motion.p>
 
         <motion.div
@@ -48,16 +68,18 @@ export default function CTA({ content }: { content?: any }) {
           transition={{ delay: 0.2 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
-          <Link
-            to="/portal/client"
+          <a
+            href="#apply"
             className="w-full sm:w-auto px-10 py-5 bg-white text-primary font-bold rounded-2xl hover:bg-gray-50 transition-all shadow-2xl shadow-white/10 flex items-center justify-center gap-2 group"
+            onClick={(e) => isEditing && e.preventDefault()}
           >
             Get Started Now
             <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
+          </a>
           <a
             href="#courses"
             className="w-full sm:w-auto px-10 py-5 bg-primary text-white font-bold rounded-2xl hover:bg-primary/90 transition-all border border-white/10 flex items-center justify-center gap-2"
+            onClick={(e) => isEditing && e.preventDefault()}
           >
             Explore Courses
           </a>

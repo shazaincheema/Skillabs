@@ -44,6 +44,25 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "email", "course", "mode"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Educational course information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "longDescription": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "price": { "type": "number" },
+        "sessions": { "type": "number" },
+        "status": { "type": "string", "enum": ["Active", "Draft"] },
+        "icon": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["title", "category", "price", "status"]
     }
   },
   "firestore": {
@@ -58,6 +77,10 @@
     "/applications/{applicationId}": {
       "schema": "Application",
       "description": "Collection of student applications"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Collection of courses"
     }
   }
 }

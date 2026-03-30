@@ -5,7 +5,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import Logo from '../ui/Logo';
 
-export default function Navbar() {
+export default function Navbar({ logoText }: { logoText?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
@@ -38,7 +38,7 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 group">
-          <Logo size={48} showText={true} textColor="text-white" />
+          <Logo size={48} showText={true} textColor="text-white" customText={logoText} />
         </Link>
 
         {/* Desktop Nav */}

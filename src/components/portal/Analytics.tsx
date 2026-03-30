@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { 
   BarChart, 
   Bar, 
@@ -6,8 +7,6 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  AreaChart, 
-  Area, 
   PieChart, 
   Pie, 
   Cell 
@@ -16,44 +15,246 @@ import {
   Users, 
   BookOpen, 
   TrendingUp, 
-  DollarSign, 
   ArrowUpRight, 
   ArrowDownRight,
   Filter,
-  Download
+  Download,
+  Loader2,
+  Clock
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { cn } from '@/lib/utils';
+import { collection, query, where, orderBy, limit, onSnapshot, getDocs } from 'firebase/firestore';
+import { db } from '@/firebase';
+import { handleFirestoreError, OperationType } from '@/lib/firebase-utils';
 
-const data = [
-  { name: 'Jan', students: 400, revenue: 2400 },
-  { name: 'Feb', students: 300, revenue: 1398 },
-  { name: 'Mar', students: 200, revenue: 9800 },
-  { name: 'Apr', students: 278, revenue: 3908 },
-  { name: 'May', students: 189, revenue: 4800 },
-  { name: 'Jun', students: 239, revenue: 3800 },
-  { name: 'Jul', students: 349, revenue: 4300 },
-];
-
-const courseData = [
-  { name: 'WSC Coaching', value: 400 },
-  { name: 'Coding & Robotics', value: 300 },
-  { name: 'Public Speaking', value: 300 },
-];
-
-const COLORS = ['#0B1F3A', '#F28C28', '#E5E7EB'];
+interface Activity {
+  user: string;
+  action: string;
+  target: string;
+  time: string;
+  timestamp: any;
+}
 
 export default function Analytics() {
+  const [studentCount, setStudentCount] = useState(0);
+  const [courseCount, setCourseCount] = useState(0);
+  const [applicationCount, setApplicationCount] = useState(0);
+  const [pendingApps, setPendingApps] = useState(0);
+  const [courseDistribution, setCourseDistribution] = useState<{ name: string, value: number }[]>([]);
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
+  const [enrollmentData, setEnrollmentData] = useState<{ name: string, students: number }[]>([]);
+  const [studentChange, setStudentChange] = useState('0');
+  const [appChange, setAppChange] = useState('0');
+  const [pendingChange, setPendingChange] = useState('0');
+  const [loading, setLoading] = useState(true);
+
+  const COLORS = ['#0B1F3A', '#F28C28', '#E5E7EB', '#4B5563', '#9CA3AF'];
+
+  useEffect(() => {
+    // Fetch student count and enrollment trend
+    const studentsQuery = query(collection(db, 'users'), where('role', '==', 'client'));
+    const unsubscribeStudents = onSnapshot(studentsQuery, (snapshot) => {
+      setStudentCount(snapshot.size);
+      
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      
+      let currentPeriod = 0;
+      let previousPeriod = 0;
+
+      // Calculate enrollment trend
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentMonth = now.getMonth();
+      const last7Months = [];
+      for (let i = 6; i >= 0; i--) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        last7Months.push({ name: months[monthIndex], students: 0, monthIndex });
+      }
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.createdAt) {
+          const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+          
+          // Trend calculation
+          if (date >= thirtyDaysAgo) currentPeriod++;
+          else if (date >= sixtyDaysAgo) previousPeriod++;
+
+          const month = months[date.getMonth()];
+          const monthData = last7Months.find(m => m.name === month);
+          if (monthData) {
+            monthData.students++;
+          }
+        }
+      });
+      setEnrollmentData(last7Months);
+      
+      const diff = currentPeriod - previousPeriod;
+      setStudentChange(diff >= 0 ? `+${diff}` : `${diff}`);
+    });
+
+    // Fetch course count and distribution
+    const coursesQuery = collection(db, 'courses');
+    const unsubscribeCourses = onSnapshot(coursesQuery, (snapshot) => {
+      setCourseCount(snapshot.size);
+      const coursesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+      
+      // Calculate course interest based on applications
+      const applicationsQuery = collection(db, 'applications');
+      getDocs(applicationsQuery).then(appSnapshot => {
+        const counts: Record<string, number> = {};
+        appSnapshot.docs.forEach(doc => {
+          const courseName = doc.data().course;
+          if (courseName) {
+            counts[courseName] = (counts[courseName] || 0) + 1;
+          }
+        });
+        
+        const dist = coursesData.map(c => ({
+          name: c.title,
+          value: counts[c.title] || 0
+        })).filter(d => d.value > 0).slice(0, 5);
+        
+        // Fallback if no applications yet
+        if (dist.length === 0) {
+          setCourseDistribution(coursesData.slice(0, 5).map(c => ({ name: c.title, value: 1 })));
+        } else {
+          setCourseDistribution(dist);
+        }
+      }).catch(error => {
+        console.error('Course distribution error:', error);
+      });
+    }, (error) => {
+      console.error('Courses snapshot error:', error);
+    });
+
+    // Fetch application count and pending
+    const applicationsQuery = collection(db, 'applications');
+    const unsubscribeApplications = onSnapshot(applicationsQuery, (snapshot) => {
+      setApplicationCount(snapshot.size);
+      const pending = snapshot.docs.filter(doc => doc.data().status === 'Pending').length;
+      setPendingApps(pending);
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+      
+      let currentApps = 0;
+      let previousApps = 0;
+      let currentPending = 0;
+      let previousPending = 0;
+
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const date = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+        
+        if (date >= thirtyDaysAgo) {
+          currentApps++;
+          if (data.status === 'Pending') currentPending++;
+        } else if (date >= sixtyDaysAgo) {
+          previousApps++;
+          if (data.status === 'Pending') previousPending++;
+        }
+      });
+
+      const appDiff = currentApps - previousApps;
+      setAppChange(appDiff >= 0 ? `+${appDiff}` : `${appDiff}`);
+      
+      const pendingDiff = currentPending - previousPending;
+      setPendingChange(pendingDiff >= 0 ? `+${pendingDiff}` : `${pendingDiff}`);
+    }, (error) => {
+      console.error('Applications snapshot error:', error);
+    });
+
+    // Combined Recent Activity (Applications + New Students)
+    const qRecentApps = query(collection(db, 'applications'), orderBy('createdAt', 'desc'), limit(10));
+    const qRecentStudents = query(collection(db, 'users'), where('role', '==', 'client'), orderBy('createdAt', 'desc'), limit(10));
+
+    let apps: Activity[] = [];
+    let students: Activity[] = [];
+
+    const updateActivity = () => {
+      const combined = [...apps, ...students]
+        .sort((a, b) => {
+          const timeA = a.timestamp?.seconds || 0;
+          const timeB = b.timestamp?.seconds || 0;
+          return timeB - timeA;
+        })
+        .slice(0, 6);
+      setRecentActivity(combined);
+      setLoading(false);
+    };
+
+    const unsubscribeRecentApps = onSnapshot(qRecentApps, (snapshot) => {
+      apps = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+        const now = new Date();
+        const diff = Math.floor((now.getTime() - date.getTime()) / 60000);
+        let timeStr = diff < 1 ? 'Just now' : diff < 60 ? `${diff} mins ago` : diff < 1440 ? `${Math.floor(diff/60)} hours ago` : `${Math.floor(diff/1440)} days ago`;
+        return {
+          user: data.name || 'Anonymous',
+          action: 'applied for',
+          target: data.course || 'a course',
+          time: timeStr,
+          timestamp: data.createdAt
+        };
+      });
+      updateActivity();
+    }, (error) => {
+      console.error('Recent apps snapshot error:', error);
+    });
+
+    const unsubscribeRecentStudents = onSnapshot(qRecentStudents, (snapshot) => {
+      students = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = data.createdAt?.toDate ? data.createdAt.toDate() : new Date();
+        const now = new Date();
+        const diff = Math.floor((now.getTime() - date.getTime()) / 60000);
+        let timeStr = diff < 1 ? 'Just now' : diff < 60 ? `${diff} mins ago` : diff < 1440 ? `${Math.floor(diff/60)} hours ago` : `${Math.floor(diff/1440)} days ago`;
+        return {
+          user: data.displayName || data.email?.split('@')[0] || 'New Student',
+          action: 'enrolled in',
+          target: 'Skillabs Portal',
+          time: timeStr,
+          timestamp: data.createdAt
+        };
+      });
+      updateActivity();
+    }, (error) => {
+      console.error('Recent students snapshot error:', error);
+    });
+
+    return () => {
+      unsubscribeStudents();
+      unsubscribeCourses();
+      unsubscribeApplications();
+      unsubscribeRecentApps();
+      unsubscribeRecentStudents();
+    };
+  }, []);
+
   const stats = [
-    { label: 'Total Students', value: '1,284', change: '+12.5%', trend: 'up', icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Active Courses', value: '12', change: '+2', trend: 'up', icon: BookOpen, color: 'text-accent', bg: 'bg-accent/10' },
-    { label: 'Monthly Revenue', value: '$42,500', change: '-3.2%', trend: 'down', icon: DollarSign, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: 'Completion Rate', value: '84%', change: '+5.4%', trend: 'up', icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' },
+    { label: 'Total Students', value: studentCount.toLocaleString(), change: studentChange, trend: studentChange.startsWith('+') ? 'up' : 'down', icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
+    { label: 'Active Courses', value: courseCount.toString(), change: '+1', trend: 'up', icon: BookOpen, color: 'text-accent', bg: 'bg-accent/10' },
+    { label: 'Total Applications', value: applicationCount.toString(), change: appChange, trend: appChange.startsWith('+') ? 'up' : 'down', icon: TrendingUp, color: 'text-accent', bg: 'bg-accent/10' },
+    { label: 'Pending Review', value: pendingApps.toString(), change: pendingChange, trend: pendingChange.startsWith('+') ? 'up' : 'down', icon: Clock, color: 'text-primary', bg: 'bg-primary/10' },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:row justify-between items-start gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-primary">Analytics Dashboard</h1>
           <p className="text-primary/60">Monitor your platform's performance and growth.</p>
@@ -99,37 +300,12 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Revenue Chart */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-xl font-display font-bold text-primary mb-8">Revenue Growth</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F28C28" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#F28C28" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#FFF', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                  itemStyle={{ color: '#0B1F3A', fontWeight: 'bold' }}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#F28C28" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
         {/* Student Enrollment Chart */}
         <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-xl font-display font-bold text-primary mb-8">Student Enrollment</h3>
+          <h3 className="text-xl font-display font-bold text-primary mb-8">Student Enrollment Trend</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
+              <BarChart data={enrollmentData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9CA3AF' }} />
@@ -145,12 +321,12 @@ export default function Analytics() {
 
         {/* Course Distribution */}
         <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
-          <h3 className="text-xl font-display font-bold text-primary mb-8">Course Distribution</h3>
+          <h3 className="text-xl font-display font-bold text-primary mb-8">Course Interest</h3>
           <div className="h-80 flex items-center justify-center">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={courseData}
+                  data={courseDistribution}
                   cx="50%"
                   cy="50%"
                   innerRadius={80}
@@ -158,18 +334,18 @@ export default function Analytics() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {courseData.map((entry, index) => (
+                  {courseDistribution.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex flex-col gap-4">
-              {courseData.map((entry, index) => (
+            <div className="flex flex-col gap-4 ml-4">
+              {courseDistribution.map((entry, index) => (
                 <div key={entry.name} className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                  <span className="text-sm font-medium text-primary/60">{entry.name}</span>
+                  <span className="text-xs font-medium text-primary/60 truncate max-w-[120px]">{entry.name}</span>
                 </div>
               ))}
             </div>
@@ -177,27 +353,26 @@ export default function Analytics() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm lg:col-span-2">
           <h3 className="text-xl font-display font-bold text-primary mb-8">Recent Activity</h3>
-          <div className="space-y-6">
-            {[
-              { user: 'Alice Johnson', action: 'enrolled in', target: 'WSC Coaching', time: '2 mins ago' },
-              { user: 'Bob Smith', action: 'completed', target: 'Coding Basics', time: '15 mins ago' },
-              { user: 'Charlie Brown', action: 'booked a session for', target: 'Public Speaking', time: '1 hour ago' },
-              { user: 'Diana Prince', action: 'made a payment for', target: 'Robotics Advanced', time: '3 hours ago' },
-            ].map((activity, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                  {activity.user.split(' ').map(n => n[0]).join('')}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {recentActivity.length > 0 ? (
+              recentActivity.map((activity, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                    {activity.user.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-primary">
+                      <span className="font-bold">{activity.user}</span> {activity.action} <span className="font-bold">{activity.target}</span>
+                    </p>
+                    <p className="text-xs text-primary/40">{activity.time}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-primary">
-                    <span className="font-bold">{activity.user}</span> {activity.action} <span className="font-bold">{activity.target}</span>
-                  </p>
-                  <p className="text-xs text-primary/40">{activity.time}</p>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-primary/40 text-center col-span-2 py-12">No recent activity found.</p>
+            )}
           </div>
           <button className="w-full mt-8 py-3 border border-gray-200 text-primary font-bold rounded-xl text-sm hover:bg-gray-50 transition-all">
             View All Activity
@@ -207,6 +382,3 @@ export default function Analytics() {
     </div>
   );
 }
-
-import { cn } from '@/lib/utils';
-import { BarChart3 } from 'lucide-react';

@@ -2,12 +2,19 @@ import { motion } from 'motion/react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Logo from '../ui/Logo';
+import { cn } from '@/lib/utils';
 
-export default function Hero({ content }: { content?: any }) {
+export default function Hero({ content, isEditing, onUpdate }: { content?: any, isEditing?: boolean, onUpdate?: (data: any) => void }) {
   const title = content?.title || "Master Lifelong Skills with Skillabs";
   const subtitle = content?.subtitle || "Expert-led sessions in WSC Coaching, Coding & Robotics, and Public Speaking. Unlock your potential with our premium educational platform.";
   const ctaPrimary = content?.ctaPrimary || "Get Started";
   const ctaSecondary = content?.ctaSecondary || "Explore Courses";
+
+  const handleBlur = (field: string, value: string) => {
+    if (onUpdate) {
+      onUpdate({ ...content, [field]: value });
+    }
+  };
 
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 pb-32 px-6 overflow-hidden bg-primary">
@@ -33,17 +40,28 @@ export default function Hero({ content }: { content?: any }) {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="text-6xl md:text-8xl font-display font-bold text-white mb-8 leading-[1] tracking-tight"
+          className={cn(
+            "text-6xl md:text-8xl font-display font-bold text-white mb-8 leading-[1] tracking-tight outline-none",
+            isEditing && "focus:ring-2 focus:ring-accent rounded-lg px-2"
+          )}
+          contentEditable={isEditing}
+          onBlur={(e) => handleBlur('title', e.currentTarget.textContent || '')}
+          suppressContentEditableWarning
         >
-          {title.split('with Skillabs')[0]} <br />
-          <span className="text-accent drop-shadow-[0_0_30px_rgba(242,125,38,0.3)]">with Skillabs.</span>
+          {title}
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="text-lg md:text-2xl text-white/60 mb-12 max-w-2xl mx-auto leading-relaxed"
+          className={cn(
+            "text-lg md:text-2xl text-white/60 mb-12 max-w-2xl mx-auto leading-relaxed outline-none",
+            isEditing && "focus:ring-2 focus:ring-accent rounded-lg px-2"
+          )}
+          contentEditable={isEditing}
+          onBlur={(e) => handleBlur('subtitle', e.currentTarget.textContent || '')}
+          suppressContentEditableWarning
         >
           {subtitle}
         </motion.p>
@@ -54,19 +72,37 @@ export default function Hero({ content }: { content?: any }) {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20"
         >
-          <Link
-            to="/portal/client"
-            className="w-full sm:w-auto px-8 py-4 bg-primary text-white font-bold rounded-2xl hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group"
-          >
-            {ctaPrimary}
-            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-          <a
-            href="#courses"
-            className="w-full sm:w-auto px-8 py-4 bg-white text-primary font-bold rounded-2xl hover:bg-gray-50 transition-all border border-gray-200 flex items-center justify-center gap-2"
-          >
-            {ctaSecondary}
-          </a>
+          <div className="relative group">
+            <a
+              href="#apply"
+              className={cn(
+                "w-full sm:w-auto px-8 py-4 bg-primary text-white font-bold rounded-2xl hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 outline-none",
+                isEditing && "focus:ring-2 focus:ring-accent"
+              )}
+              contentEditable={isEditing}
+              onBlur={(e) => handleBlur('ctaPrimary', e.currentTarget.textContent || '')}
+              suppressContentEditableWarning
+              onClick={(e) => isEditing && e.preventDefault()}
+            >
+              {ctaPrimary}
+              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+            </a>
+          </div>
+          <div className="relative group">
+            <a
+              href="#courses"
+              className={cn(
+                "w-full sm:w-auto px-8 py-4 bg-white text-primary font-bold rounded-2xl hover:bg-gray-50 transition-all border border-gray-200 flex items-center justify-center gap-2 outline-none",
+                isEditing && "focus:ring-2 focus:ring-accent"
+              )}
+              contentEditable={isEditing}
+              onBlur={(e) => handleBlur('ctaSecondary', e.currentTarget.textContent || '')}
+              suppressContentEditableWarning
+              onClick={(e) => isEditing && e.preventDefault()}
+            >
+              {ctaSecondary}
+            </a>
+          </div>
         </motion.div>
 
         {/* Tagline from image */}

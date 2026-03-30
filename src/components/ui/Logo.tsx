@@ -5,9 +5,10 @@ interface LogoProps {
   size?: number;
   showText?: boolean;
   textColor?: string;
+  customText?: string;
 }
 
-export default function Logo({ className = "", size = 40, showText = false, textColor = "text-primary" }: LogoProps) {
+export default function Logo({ className = "", size = 40, showText = false, textColor = "text-primary", customText }: LogoProps) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <svg
@@ -56,7 +57,11 @@ export default function Logo({ className = "", size = 40, showText = false, text
       
       {showText && (
         <span className={`font-display font-bold text-xl tracking-tight ${textColor}`}>
-          Skil<span className="text-accent">labs</span>
+          {customText ? (
+            customText
+          ) : (
+            <>Skil<span className="text-accent">labs</span></>
+          )}
         </span>
       )}
     </div>

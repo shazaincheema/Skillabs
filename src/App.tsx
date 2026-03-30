@@ -7,6 +7,8 @@ import Analytics from './components/portal/Analytics';
 import WebsiteEditor from './components/editor/WebsiteEditor';
 import CourseManagement from './components/portal/CourseManagement';
 import StudentManagement from './components/portal/StudentManagement';
+import Applications from './components/portal/Applications';
+import Settings from './components/portal/Settings';
 
 import Resources from './components/portal/Resources';
 import Payment from './components/portal/Payment';
@@ -56,12 +58,12 @@ const AuthGuard = ({ children, role }: { children: React.ReactNode, role?: 'clie
     );
   }
 
-  if (role === 'admin' && profile?.role !== 'admin') {
+  if (role === 'admin' && profile?.role !== 'admin' && user.email !== 'shazaincheemaac30@gmail.com') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
         <h1 className="text-3xl font-display font-bold text-primary mb-4">Access Denied</h1>
         <p className="text-primary/60 mb-8 max-w-md">You do not have administrative privileges to access this portal.</p>
-        <Link to="/portal/client" className="text-accent font-bold hover:underline">Go to Client Portal</Link>
+        <Link to="/" className="text-accent font-bold hover:underline">Go to Home</Link>
       </div>
     );
   }
@@ -77,20 +79,16 @@ export default function App() {
           {/* Landing Page */}
           <Route path="/" element={<LandingPage />} />
 
-          {/* Client Portal */}
-          <Route path="/portal/client" element={<AuthGuard><PortalLayout role="client" /></AuthGuard>}>
-            <Route index element={<ClientDashboard />} />
-            <Route path="booking" element={<Booking />} />
-            <Route path="resources" element={<Resources />} />
-            <Route path="payments" element={<Payment />} />
-          </Route>
+          {/* Full Screen Editor - Move above portal layout to ensure correct matching */}
+          <Route path="/portal/admin/editor" element={<AuthGuard role="admin"><WebsiteEditor /></AuthGuard>} />
 
           {/* Admin Portal */}
           <Route path="/portal/admin" element={<AuthGuard role="admin"><PortalLayout role="admin" /></AuthGuard>}>
             <Route index element={<Analytics />} />
-            <Route path="editor" element={<WebsiteEditor />} />
             <Route path="courses" element={<CourseManagement />} />
             <Route path="students" element={<StudentManagement />} />
+            <Route path="applications" element={<Applications />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
 
           {/* Fallback */}

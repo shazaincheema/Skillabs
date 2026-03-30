@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   PlayCircle, 
@@ -7,13 +8,41 @@ import {
   ChevronRight,
   TrendingUp,
   BookOpen,
-  Award
+  Award,
+  BarChart3,
+  Megaphone
 } from 'lucide-react';
 
 import { useAuth } from '../auth/FirebaseProvider';
+import { cn } from '@/lib/utils';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/firebase';
+
+interface PortalConfig {
+  welcomeMessage: string;
+  announcement: string;
+}
 
 export default function ClientDashboard() {
   const { profile } = useAuth();
+  const [portalConfig, setPortalConfig] = useState<PortalConfig>({
+    welcomeMessage: "You're making great progress. Keep it up!",
+    announcement: ""
+  });
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'config', 'landing-page'), (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        if (data.portal) {
+          setPortalConfig(data.portal);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const stats = [
     { label: 'Courses Enrolled', value: '3', icon: BookOpen, color: 'text-primary', bg: 'bg-primary/10' },
     { label: 'Sessions Completed', value: '12', icon: CheckCircle2, color: 'text-accent', bg: 'bg-accent/10' },
@@ -33,11 +62,25 @@ export default function ClientDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Announcement Bar */}
+      {portalConfig.announcement && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-accent/10 border border-accent/20 p-4 rounded-2xl flex items-center gap-4 text-accent"
+        >
+          <div className="bg-accent text-white p-2 rounded-xl">
+            <Megaphone size={20} />
+          </div>
+          <p className="text-sm font-bold">{portalConfig.announcement}</p>
+        </motion.div>
+      )}
+
       {/* Welcome Header */}
-      <div className="flex flex-col md:row justify-between items-start gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-primary">Welcome back, {profile?.displayName || 'User'}! 👋</h1>
-          <p className="text-primary/60">You're making great progress. Keep it up!</p>
+          <p className="text-primary/60">{portalConfig.welcomeMessage}</p>
         </div>
         <button className="px-6 py-3 bg-accent text-white font-bold rounded-xl hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 flex items-center gap-2">
           <Calendar size={20} />
@@ -148,6 +191,3 @@ export default function ClientDashboard() {
     </div>
   );
 }
-
-import { cn } from '@/lib/utils';
-import { BarChart3 } from 'lucide-react';

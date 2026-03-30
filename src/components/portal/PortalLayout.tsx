@@ -11,7 +11,8 @@ import {
   GraduationCap,
   Globe,
   Users,
-  BarChart3
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
@@ -21,26 +22,20 @@ import { useAuth } from '../auth/FirebaseProvider';
 
 import Logo from '../ui/Logo';
 
-export default function PortalLayout({ role }: { role: 'client' | 'admin' }) {
+export default function PortalLayout({ role }: { role: 'admin' }) {
   const [isOpen, setIsOpen] = useState(true);
   const location = useLocation();
   const { profile, logout } = useAuth();
-
-  const clientLinks = [
-    { name: 'Dashboard', href: '/portal/client', icon: LayoutDashboard },
-    { name: 'Book Session', href: '/portal/client/booking', icon: Calendar },
-    { name: 'Resources', href: '/portal/client/resources', icon: BookOpen },
-    { name: 'Payments', href: '/portal/client/payments', icon: CreditCard },
-  ];
 
   const adminLinks = [
     { name: 'Analytics', href: '/portal/admin', icon: BarChart3 },
     { name: 'Website Editor', href: '/portal/admin/editor', icon: Globe },
     { name: 'Courses', href: '/portal/admin/courses', icon: BookOpen },
     { name: 'Students', href: '/portal/admin/students', icon: Users },
+    { name: 'Applications', href: '/portal/admin/applications', icon: FileText },
   ];
 
-  const links = role === 'admin' ? adminLinks : clientLinks;
+  const links = adminLinks;
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -91,10 +86,15 @@ export default function PortalLayout({ role }: { role: 'client' | 'admin' }) {
 
         <div className="p-4 border-t border-white/10 space-y-2">
           <Link
-            to="/settings"
-            className="flex items-center gap-4 px-4 py-3 rounded-xl text-white/60 hover:bg-white/5 hover:text-white transition-all"
+            to="/portal/admin/settings"
+            className={cn(
+              "flex items-center gap-4 px-4 py-3 rounded-xl transition-all group",
+              location.pathname === '/portal/admin/settings'
+                ? 'bg-accent text-white shadow-lg shadow-accent/20' 
+                : 'text-white/60 hover:bg-white/5 hover:text-white'
+            )}
           >
-            <Settings size={20} />
+            <Settings size={20} className={cn(location.pathname === '/portal/admin/settings' ? 'text-white' : 'text-white/60 group-hover:text-white')} />
             {isOpen && <span className="font-medium">Settings</span>}
           </Link>
           <button

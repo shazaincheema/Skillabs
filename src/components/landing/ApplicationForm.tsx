@@ -1,14 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Send, CheckCircle2, Loader2 } from 'lucide-react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
-
-const courses = [
-  "WSC Coaching",
-  "Coding & Robotics",
-  "Public Speaking"
-];
+import { cn } from '@/lib/utils';
 
 const modes = [
   { id: 'online', label: 'Online' },
@@ -16,34 +11,70 @@ const modes = [
   { id: 'hybrid', label: 'Hybrid' }
 ];
 
-export default function ApplicationForm() {
+export default function ApplicationForm({ content, isEditing, onUpdate }: { content?: any, isEditing?: boolean, onUpdate?: (data: any) => void }) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [courses, setCourses] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     age: '',
     contactNumber: '',
     email: '',
-    course: courses[0],
+    course: '',
     mode: 'hybrid'
   });
 
+  useEffect(() => {
+    const q = query(collection(db, 'courses'), where('status', '==', 'Active'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const courseList = snapshot.docs.map(doc => doc.data().title as string);
+      setCourses(courseList);
+      if (courseList.length > 0 && !formData.course) {
+        setFormData(prev => ({ ...prev, course: courseList[0] }));
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const title = content?.title || 'Start Your Journey';
+  const description = content?.description || 'Fill out the form below and our team will get back to you within 24 hours.';
+
+  const handleBlur = (field: string, value: string) => {
+    if (onUpdate) {
+      onUpdate({ ...content, [field]: value });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isEditing) return;
     setStatus('loading');
 
     try {
-      await addDoc(collection(db, 'applications'), {
+      const docRef = await addDoc(collection(db, 'applications'), {
         ...formData,
         age: formData.age ? parseInt(formData.age) : null,
+        status: 'Pending',
         createdAt: serverTimestamp()
       });
+
+      // Notify Formspree
+      try {
+        await fetch('https://formspree.io/f/xpqopdjz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+      } catch (formspreeError) {
+        console.error("Failed to notify Formspree:", formspreeError);
+      }
+
       setStatus('success');
       setFormData({
         name: '',
         age: '',
         contactNumber: '',
         email: '',
-        course: courses[0],
+        course: courses[0] || '',
         mode: 'hybrid'
       });
     } catch (error) {
@@ -62,18 +93,30 @@ export default function ApplicationForm() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-4xl md:text-5xl font-display font-bold text-white mb-6"
+            className={cn(
+              "text-4xl md:text-5xl font-display font-bold text-white mb-6 outline-none",
+              isEditing && "focus:ring-2 focus:ring-accent rounded-lg"
+            )}
+            contentEditable={isEditing}
+            onBlur={(e) => handleBlur('title', e.currentTarget.textContent || '')}
+            suppressContentEditableWarning
           >
-            Start Your <span className="text-accent">Journey</span>
+            {title}
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
-            className="text-lg text-white/60"
+            className={cn(
+              "text-lg text-white/60 outline-none",
+              isEditing && "focus:ring-2 focus:ring-accent rounded-lg"
+            )}
+            contentEditable={isEditing}
+            onBlur={(e) => handleBlur('description', e.currentTarget.textContent || '')}
+            suppressContentEditableWarning
           >
-            Fill out the form below and our team will get back to you within 24 hours.
+            {description}
           </motion.p>
         </div>
 
@@ -154,7 +197,11 @@ export default function ApplicationForm() {
                   onChange={(e) => setFormData({ ...formData, course: e.target.value })}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent transition-colors appearance-none"
                 >
-                  {courses.map(c => <option key={c} value={c} className="bg-primary text-white">{c}</option>)}
+                  {courses.length > 0 ? (
+                    courses.map(c => <option key={c} value={c} className="bg-primary text-white">{c}</option>)
+                  ) : (
+                    <option value="" disabled className="bg-primary text-white">No active courses available</option>
+                  )}
                 </select>
               </div>
 
