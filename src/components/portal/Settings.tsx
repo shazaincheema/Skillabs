@@ -18,7 +18,8 @@ import {
   doc, 
   updateDoc, 
   setDoc,
-  getDocs
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '@/firebase';
 import { handleFirestoreError, OperationType } from '@/lib/firebase-utils';
@@ -34,6 +35,7 @@ interface AdminUser {
 export default function Settings() {
   const { user: currentUser } = useAuth();
   const [admins, setAdmins] = useState<AdminUser[]>([]);
+  const [preAdmins, setPreAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,20 +43,35 @@ export default function Settings() {
 
   useEffect(() => {
     const q = query(collection(db, 'users'), where('role', '==', 'admin'));
+    const preQ = collection(db, 'pre_authorized_admins');
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeAdmins = onSnapshot(q, (snapshot) => {
       const adminData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as AdminUser[];
       setAdmins(adminData);
-      setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'users');
+    });
+
+    const unsubscribePreAdmins = onSnapshot(preQ, (snapshot) => {
+      const preData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        isPreAuthorized: true
+      }));
+      setPreAdmins(preData);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'pre_authorized_admins');
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAdmins();
+      unsubscribePreAdmins();
+    };
   }, []);
 
   const handleAddAdmin = async (e: React.FormEvent) => {
@@ -65,26 +82,20 @@ export default function Settings() {
     setMessage(null);
 
     try {
-      // Check if user already exists
+      // Check if user already exists in users collection
       const q = query(collection(db, 'users'), where('email', '==', newAdminEmail.trim().toLowerCase()));
       const querySnapshot = await getDocs(q);
       
-      let sanitizedId = '';
       if (!querySnapshot.empty) {
         const userDoc = querySnapshot.docs[0];
-        sanitizedId = userDoc.id;
-        await updateDoc(doc(db, 'users', sanitizedId), {
+        await updateDoc(doc(db, 'users', userDoc.id), {
           role: 'admin'
         });
       } else {
-        // If user doesn't exist, we can't really "add" them as admin in Firebase Auth easily from here
-        // but we can create a record in 'users' collection so when they log in, they get the role.
-        // We'll use a random ID or the email as ID (sanitized)
-        sanitizedId = newAdminEmail.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '_');
-        await setDoc(doc(db, 'users', sanitizedId), {
+        // If user doesn't exist, add to pre_authorized_admins
+        await setDoc(doc(db, 'pre_authorized_admins', newAdminEmail.trim().toLowerCase()), {
           email: newAdminEmail.trim().toLowerCase(),
-          role: 'admin',
-          createdAt: new Date()
+          addedAt: new Date()
         });
       }
 
@@ -92,11 +103,20 @@ export default function Settings() {
       setNewAdminEmail('');
 
       // Update backend for email notifications
-      const updatedAdmins = [...admins, { id: sanitizedId, email: newAdminEmail.trim().toLowerCase(), role: 'admin' as const }];
+      // We'll fetch all admins to update the list
+      const allAdminsQuery = query(collection(db, 'users'), where('role', '==', 'admin'));
+      const allAdminsSnap = await getDocs(allAdminsQuery);
+      const preAdminsSnap = await getDocs(collection(db, 'pre_authorized_admins'));
+      
+      const adminEmailsList = [
+        ...allAdminsSnap.docs.map(d => d.data().email),
+        ...preAdminsSnap.docs.map(d => d.data().email)
+      ];
+
       await fetch('/api/update-admin-emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: updatedAdmins.map(a => a.email) })
+        body: JSON.stringify({ emails: adminEmailsList })
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'users');
@@ -106,7 +126,7 @@ export default function Settings() {
     }
   };
 
-  const handleRemoveAdmin = async (adminId: string, adminEmail: string) => {
+  const handleRemoveAdmin = async (adminId: string, adminEmail: string, isPreAuthorized: boolean = false) => {
     if (adminEmail === currentUser?.email) {
       alert("You cannot remove your own admin access.");
       return;
@@ -115,17 +135,30 @@ export default function Settings() {
     if (!window.confirm(`Are you sure you want to remove admin access for ${adminEmail}?`)) return;
 
     try {
-      await updateDoc(doc(db, 'users', adminId), {
-        role: 'client'
-      });
+      if (isPreAuthorized) {
+        await deleteDoc(doc(db, 'pre_authorized_admins', adminEmail.toLowerCase()));
+      } else {
+        await updateDoc(doc(db, 'users', adminId), {
+          role: 'client'
+        });
+      }
+      
       setMessage({ type: 'success', text: `Admin access removed for ${adminEmail}` });
 
       // Update backend for email notifications
-      const updatedAdmins = admins.filter(a => a.id !== adminId);
+      const allAdminsQuery = query(collection(db, 'users'), where('role', '==', 'admin'));
+      const allAdminsSnap = await getDocs(allAdminsQuery);
+      const preAdminsSnap = await getDocs(collection(db, 'pre_authorized_admins'));
+      
+      const adminEmailsList = [
+        ...allAdminsSnap.docs.map(d => d.data().email),
+        ...preAdminsSnap.docs.map(d => d.data().email)
+      ];
+
       await fetch('/api/update-admin-emails', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails: updatedAdmins.map(a => a.email) })
+        body: JSON.stringify({ emails: adminEmailsList })
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${adminId}`);
@@ -200,20 +233,28 @@ export default function Settings() {
           <div className="space-y-4">
             <h3 className="text-sm font-bold text-primary/40 uppercase tracking-widest">Current Administrators</h3>
             <div className="divide-y divide-gray-50 border border-gray-50 rounded-2xl overflow-hidden">
-              {admins.map((admin) => (
+              {[...admins, ...preAdmins].map((admin) => (
                 <div key={admin.id} className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-primary/5 rounded-full flex items-center justify-center text-primary font-bold text-xs">
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs",
+                      admin.isPreAuthorized ? "bg-amber-400" : "bg-primary"
+                    )}>
                       {(admin.displayName || admin.email[0]).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-primary">{admin.displayName || 'Admin User'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-primary">{admin.displayName || 'Admin User'}</p>
+                        {admin.isPreAuthorized && (
+                          <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full font-bold uppercase tracking-wider">Pending Login</span>
+                        )}
+                      </div>
                       <p className="text-xs text-primary/40">{admin.email}</p>
                     </div>
                   </div>
                   {admin.email !== currentUser?.email && (
                     <button
-                      onClick={() => handleRemoveAdmin(admin.id, admin.email)}
+                      onClick={() => handleRemoveAdmin(admin.id, admin.email, admin.isPreAuthorized)}
                       className="p-2 text-primary/20 hover:text-red-500 transition-all rounded-lg hover:bg-red-50"
                       title="Remove Admin Access"
                     >

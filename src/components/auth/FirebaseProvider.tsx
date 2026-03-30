@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocFromServer, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 import { UserProfile } from '@/types';
 
@@ -13,6 +13,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+import { isSuperAdmin } from '@/constants';
 
 export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -41,7 +43,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         if (docSnap.exists()) {
           const existingProfile = docSnap.data() as UserProfile;
           // Ensure master admin always has admin role
-          if (user.email === 'shazaincheemaac30@gmail.com' && existingProfile.role !== 'admin') {
+          if (isSuperAdmin(user.email) && existingProfile.role !== 'admin') {
             const updatedProfile = { ...existingProfile, role: 'admin' as const };
             await setDoc(docRef, updatedProfile);
             setProfile(updatedProfile);
@@ -49,12 +51,29 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             setProfile(existingProfile);
           }
         } else {
+          // Check if user was pre-authorized as admin by email
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('email', '==', user.email?.toLowerCase()), where('role', '==', 'admin'));
+          const querySnapshot = await getDocs(q);
+          
+          let initialRole: 'admin' | 'client' = isSuperAdmin(user.email) ? 'admin' : 'client';
+          
+          if (!querySnapshot.empty) {
+            initialRole = 'admin';
+            // Delete the pre-authorized placeholder if it exists with a different ID
+            const placeholderDoc = querySnapshot.docs[0];
+            if (placeholderDoc.id !== user.uid) {
+              // We can't easily delete here without rules, but we can just ignore it
+              // and create the new one with the correct UID
+            }
+          }
+
           // Create default profile
           const newProfile: UserProfile = {
             uid: user.uid,
             email: user.email || '',
             displayName: user.displayName || 'User',
-            role: user.email === 'shazaincheemaac30@gmail.com' ? 'admin' : 'client',
+            role: initialRole,
             progress: []
           };
           await setDoc(docRef, newProfile);

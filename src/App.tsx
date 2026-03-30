@@ -29,6 +29,8 @@ import { FirebaseProvider, useAuth } from './components/auth/FirebaseProvider';
 import { Link } from 'react-router-dom';
 import Logo from './components/ui/Logo';
 
+import { isSuperAdmin } from './constants';
+
 // Auth Guard Component
 const AuthGuard = ({ children, role }: { children: React.ReactNode, role?: 'client' | 'admin' }) => {
   const { user, profile, loading, signIn } = useAuth();
@@ -58,7 +60,7 @@ const AuthGuard = ({ children, role }: { children: React.ReactNode, role?: 'clie
     );
   }
 
-  if (role === 'admin' && profile?.role !== 'admin' && user.email !== 'shazaincheemaac30@gmail.com') {
+  if (role === 'admin' && profile?.role !== 'admin' && !isSuperAdmin(user.email)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
         <h1 className="text-3xl font-display font-bold text-primary mb-4">Access Denied</h1>

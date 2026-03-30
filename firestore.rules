@@ -45,9 +45,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          request.auth.token.email == "shazaincheemaac30@gmail.com");
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        request.auth.token.email == "shazaincheemaac30@gmail.com"
+      );
     }
 
     function isValidEmail(email) {
@@ -84,12 +86,20 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin() || (isAuthenticated() && request.auth.token.email.lower() == resource.data.email.lower());
       allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
-        (request.auth.uid == userId && request.resource.data.role == 'client' || isAdmin());
+        (request.auth.uid == userId && (
+          request.resource.data.role == 'client' || 
+          exists(/databases/$(database)/documents/pre_authorized_admins/$(request.resource.data.email.lower()))
+        ) || isAdmin());
       allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
         (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
       allow delete: if isAdmin();
+    }
+
+    match /pre_authorized_admins/{email} {
+      allow read: if isAuthenticated() && request.auth.token.email.lower() == email.lower() || isAdmin();
+      allow write: if isAdmin();
     }
 
     match /config/{configId} {
