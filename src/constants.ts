@@ -1,5 +1,6 @@
 export const ADMIN_EMAILS = [
   'shazaincheemaac30@gmail.com',
+  'team@skillabs.biz',
   // Add more admin emails here
 ];
 

@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json());
 
 // Mock database for admins (in real app, fetch from Firestore)
-let adminEmails: string[] = ["shazaincheemaac30@gmail.com"]; // Default admin from runtime context
+let adminEmails: string[] = ["shazaincheemaac30@gmail.com", "team@skillabs.biz"]; // Default admins
 
 // API Routes
 app.post("/api/notify-admins", async (req, res) => {
